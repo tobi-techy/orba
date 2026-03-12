@@ -3,3 +3,6 @@ dist/
 .env
 *.log
 .DS_Store
+cache/
+artifacts/
+typechain-types/
