@@ -17,6 +17,11 @@ export const config = {
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID!,
     verifyToken: process.env.WHATSAPP_VERIFY_TOKEN!,
   },
+  twilio: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID,
+    authToken: process.env.TWILIO_AUTH_TOKEN,
+    phoneNumber: process.env.TWILIO_WHATSAPP_NUMBER, // e.g., +14155238886
+  },
   openai: { apiKey: process.env.OPENAI_API_KEY! },
   oracles: {
     coinGeckoKey: process.env.COINGECKO_API_KEY,

@@ -6,6 +6,7 @@ import { handleMessage } from './agent';
 
 const app = express();
 app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // For Twilio
 
 app.get('/health', async (_req, res) => {
   try {
@@ -16,7 +17,7 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-// WhatsApp webhook verification
+// WhatsApp webhook verification (Meta)
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -28,9 +29,17 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-// WhatsApp message handler
+// WhatsApp message handler (Meta + Twilio)
 app.post('/webhook', async (req, res) => {
-  res.sendStatus(200); // Acknowledge immediately
+  // Twilio expects 200 with TwiML or empty response
+  const isTwilio = req.body.From?.startsWith('whatsapp:');
+  
+  if (isTwilio) {
+    res.set('Content-Type', 'text/xml');
+    res.send('<Response></Response>'); // Empty TwiML
+  } else {
+    res.sendStatus(200);
+  }
   
   const message = parseWebhook(req.body);
   if (!message) return;
