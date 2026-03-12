@@ -9,8 +9,8 @@ RUN bun install --frozen-lockfile --production
 COPY prisma ./prisma
 COPY src ./src
 
-# Generate Prisma client
-RUN bunx prisma generate
+# Generate Prisma client (use dummy URL for build, real URL at runtime)
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" bunx prisma generate
 
 # Expose port
 EXPOSE 3001
