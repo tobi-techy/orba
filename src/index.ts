@@ -1,6 +1,8 @@
 import express from 'express';
 import { config } from './config';
 import { prisma } from './db';
+import { parseWebhook, sendMessage, markAsRead } from './whatsapp';
+import { handleMessage } from './agent';
 
 const app = express();
 app.use(express.json());
@@ -14,7 +16,7 @@ app.get('/health', async (_req, res) => {
   }
 });
 
-// WhatsApp webhook endpoints (Task 5)
+// WhatsApp webhook verification
 app.get('/webhook', (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -26,9 +28,22 @@ app.get('/webhook', (req, res) => {
   }
 });
 
+// WhatsApp message handler
 app.post('/webhook', async (req, res) => {
   res.sendStatus(200); // Acknowledge immediately
-  // Message handling implemented in Task 5
+  
+  const message = parseWebhook(req.body);
+  if (!message) return;
+  
+  await markAsRead(message.messageId);
+  
+  try {
+    const response = await handleMessage(message.from, message.text);
+    await sendMessage(message.from, response);
+  } catch (err) {
+    console.error('Error handling message:', err);
+    await sendMessage(message.from, "Sorry, something went wrong. Please try again.");
+  }
 });
 
 app.listen(config.port, () => {

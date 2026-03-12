@@ -10,6 +10,7 @@ export const config = {
     operatorKey: process.env.OPERATOR_PRIVATE_KEY!,
     chainId: 44787, // Celo Sepolia
     cUsdAddress: '0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1' as const,
+    contractAddress: process.env.PREDICTION_MARKET_ADDRESS || '',
   },
   whatsapp: {
     token: process.env.WHATSAPP_TOKEN!,
