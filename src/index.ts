@@ -1,21 +1,34 @@
 import express from 'express';
 import { config } from './config';
-import { prisma } from './db';
-import { parseWebhook, sendMessage, markAsRead } from './whatsapp';
-import { handleMessage } from './agent';
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // For Twilio
 
-app.get('/health', async (_req, res) => {
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    res.json({ status: 'ok', db: 'connected' });
-  } catch {
-    res.status(500).json({ status: 'error', db: 'disconnected' });
-  }
+// Simple healthcheck - no DB dependency
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok' });
 });
+
+// Lazy load heavy modules only when needed
+let prisma: any;
+let handleMessage: any;
+let parseWebhook: any;
+let sendMessage: any;
+let markAsRead: any;
+
+async function loadModules() {
+  if (!prisma) {
+    const db = await import('./db');
+    prisma = db.prisma;
+    const agent = await import('./agent');
+    handleMessage = agent.handleMessage;
+    const whatsapp = await import('./whatsapp');
+    parseWebhook = whatsapp.parseWebhook;
+    sendMessage = whatsapp.sendMessage;
+    markAsRead = whatsapp.markAsRead;
+  }
+}
 
 // WhatsApp webhook verification (Meta)
 app.get('/webhook', (req, res) => {
@@ -41,17 +54,20 @@ app.post('/webhook', async (req, res) => {
     res.sendStatus(200);
   }
   
-  const message = parseWebhook(req.body);
-  if (!message) return;
-  
-  await markAsRead(message.messageId);
-  
   try {
+    await loadModules();
+    const message = parseWebhook(req.body);
+    if (!message) return;
+    
+    await markAsRead(message.messageId);
     const response = await handleMessage(message.from, message.text);
     await sendMessage(message.from, response);
   } catch (err) {
     console.error('Error handling message:', err);
-    await sendMessage(message.from, "Sorry, something went wrong. Please try again.");
+    if (sendMessage) {
+      const from = req.body.From?.replace('whatsapp:', '') || req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from;
+      if (from) await sendMessage(from, "Sorry, something went wrong. Please try again.");
+    }
   }
 });
 
