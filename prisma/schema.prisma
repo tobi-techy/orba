@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String     @id @default(cuid())
+  phoneNumber String     @unique
+  walletIndex Int        @unique @default(autoincrement())
+  createdAt   DateTime   @default(now())
+  positions   Position[]
+  trades      Trade[]
+}
+
+model Market {
+  id             String     @id @default(cuid())
+  onChainId      Int?       @unique
+  question       String
+  description    String?
+  oracleType     String     // "crypto" | "sports"
+  oracleData     Json       // { coin, targetPrice, direction } or { matchId, team1, team2 }
+  resolutionTime DateTime
+  resolved       Boolean    @default(false)
+  outcome        Int?       // 0 = NO, 1 = YES
+  createdAt      DateTime   @default(now())
+  creatorId      String
+  positions      Position[]
+  trades         Trade[]
+}
+
+model Position {
+  id        String   @id @default(cuid())
+  userId    String
+  marketId  String
+  yesShares BigInt   @default(0)
+  noShares  BigInt   @default(0)
+  user      User     @relation(fields: [userId], references: [id])
+  market    Market   @relation(fields: [marketId], references: [id])
+  @@unique([userId, marketId])
+}
+
+model Trade {
+  id        String   @id @default(cuid())
+  userId    String
+  marketId  String
+  outcome   Int      // 0 = NO, 1 = YES
+  shares    BigInt
+  cost      BigInt
+  txHash    String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  market    Market   @relation(fields: [marketId], references: [id])
+}
