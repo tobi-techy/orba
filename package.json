@@ -9,7 +9,9 @@
     "dev": "bun --watch src/index.ts",
     "db:generate": "bunx prisma generate",
     "db:push": "bunx prisma db push",
-    "db:migrate": "bunx prisma migrate dev"
+    "db:migrate": "bunx prisma migrate dev",
+    "register": "bun src/register-agent.ts",
+    "deploy": "bunx hardhat run scripts/deploy.ts --network celoSepolia"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
