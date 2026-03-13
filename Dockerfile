@@ -15,5 +15,5 @@ RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" bunx prisma gen
 # Expose port
 EXPOSE 3001
 
-# Start server
-CMD ["bun", "src/index.ts"]
+# Push schema and start server
+CMD bunx prisma db push --skip-generate && bun src/index.ts
