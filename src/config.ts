@@ -5,7 +5,7 @@ export const config = {
   port: parseInt(process.env.PORT || '3000'),
   database: { url: process.env.DATABASE_URL! },
   celo: {
-    rpcUrl: process.env.CELO_RPC_URL || 'https://alfajores-forno.celo-testnet.org',
+    rpcUrl: process.env.CELO_RPC_URL || 'https://forno.celo.org/sepolia',
     masterSeed: process.env.MASTER_SEED!,
     operatorKey: process.env.OPERATOR_PRIVATE_KEY!,
     chainId: 44787, // Celo Sepolia

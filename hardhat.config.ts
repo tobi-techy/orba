@@ -8,7 +8,7 @@ const config: HardhatUserConfig = {
   solidity: "0.8.24",
   networks: {
     celoSepolia: {
-      url: "https://alfajores-forno.celo-testnet.org",
+      url: "https://forno.celo.org/sepolia",
       accounts: PRIVATE_KEY && PRIVATE_KEY.length === 66 ? [PRIVATE_KEY] : [],
       chainId: 44787,
     },
