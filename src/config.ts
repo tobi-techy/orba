@@ -22,7 +22,8 @@ export const config = {
     authToken: process.env.TWILIO_AUTH_TOKEN,
     phoneNumber: process.env.TWILIO_WHATSAPP_NUMBER, // e.g., +14155238886
   },
-  openai: { apiKey: process.env.OPENAI_API_KEY! },
+  openai: { apiKey: process.env.OPENAI_API_KEY },
+  groq: { apiKey: process.env.GROQ_API_KEY },
   oracles: {
     coinGeckoKey: process.env.COINGECKO_API_KEY,
     apiFootballKey: process.env.API_FOOTBALL_KEY,

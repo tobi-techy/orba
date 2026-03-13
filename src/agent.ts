@@ -4,7 +4,13 @@ import { getOrCreateWallet, getBalance } from './wallet';
 import { MarketService } from './market';
 import { prisma } from './db';
 
-const openai = new OpenAI({ apiKey: config.openai.apiKey });
+// Use Groq (free) or OpenAI
+const client = new OpenAI({
+  apiKey: config.groq.apiKey || config.openai.apiKey,
+  baseURL: config.groq.apiKey ? 'https://api.groq.com/openai/v1' : undefined,
+});
+const model = config.groq.apiKey ? 'llama-3.3-70b-versatile' : 'gpt-4o';
+
 const marketService = new MarketService(config.celo.contractAddress as `0x${string}`);
 
 const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
@@ -139,8 +145,8 @@ export async function handleMessage(phoneNumber: string, text: string): Promise<
   userContext.set(phoneNumber, context);
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+    const response = await client.chat.completions.create({
+      model,
       messages: [
         { role: 'system', content: systemPrompt },
         ...context,
