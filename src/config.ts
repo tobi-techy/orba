@@ -5,10 +5,10 @@ export const config = {
   port: parseInt(process.env.PORT || '3000'),
   database: { url: process.env.DATABASE_URL! },
   celo: {
-    rpcUrl: process.env.CELO_RPC_URL || 'https://forno.celo.org/sepolia',
+    rpcUrl: process.env.CELO_RPC_URL || 'https://forno.celo-sepolia.celo-testnet.org',
     masterSeed: process.env.MASTER_SEED!,
     operatorKey: process.env.OPERATOR_PRIVATE_KEY!,
-    chainId: 44787, // Celo Sepolia
+    chainId: 11142220, // Celo Sepolia
     cUsdAddress: '0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1' as const,
     contractAddress: process.env.PREDICTION_MARKET_ADDRESS || '',
   },
