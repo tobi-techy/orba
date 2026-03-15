@@ -20,7 +20,10 @@ export const config = {
   twilio: {
     accountSid: process.env.TWILIO_ACCOUNT_SID,
     authToken: process.env.TWILIO_AUTH_TOKEN,
-    phoneNumber: process.env.TWILIO_WHATSAPP_NUMBER, // e.g., +14155238886
+    phoneNumber: process.env.TWILIO_WHATSAPP_NUMBER,
+  },
+  telegram: {
+    botToken: process.env.TELEGRAM_BOT_TOKEN,
   },
   openai: { apiKey: process.env.OPENAI_API_KEY },
   groq: { apiKey: process.env.GROQ_API_KEY },

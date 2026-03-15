@@ -3,30 +3,30 @@ import { config } from './config';
 
 const app = express();
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // For Twilio
+app.use(express.urlencoded({ extended: true }));
 
-// Simple healthcheck - no DB dependency
+// Simple healthcheck
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-// Lazy load heavy modules only when needed
-let prisma: any;
+// Lazy load heavy modules
 let handleMessage: any;
 let parseWebhook: any;
 let sendMessage: any;
-let markAsRead: any;
+let parseTelegramWebhook: any;
+let sendTelegramMessage: any;
 
 async function loadModules() {
-  if (!prisma) {
-    const db = await import('./db');
-    prisma = db.prisma;
+  if (!handleMessage) {
     const agent = await import('./agent');
     handleMessage = agent.handleMessage;
     const whatsapp = await import('./whatsapp');
     parseWebhook = whatsapp.parseWebhook;
     sendMessage = whatsapp.sendMessage;
-    markAsRead = whatsapp.markAsRead;
+    const telegram = await import('./telegram');
+    parseTelegramWebhook = telegram.parseTelegramWebhook;
+    sendTelegramMessage = telegram.sendTelegramMessage;
   }
 }
 
@@ -42,32 +42,39 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-// WhatsApp message handler (Meta + Twilio)
+// WhatsApp webhook (Meta + Twilio)
 app.post('/webhook', async (req, res) => {
-  // Twilio expects 200 with TwiML or empty response
   const isTwilio = req.body.From?.startsWith('whatsapp:');
-  
   if (isTwilio) {
     res.set('Content-Type', 'text/xml');
-    res.send('<Response></Response>'); // Empty TwiML
+    res.send('<Response></Response>');
   } else {
     res.sendStatus(200);
   }
-  
+
   try {
     await loadModules();
     const message = parseWebhook(req.body);
     if (!message) return;
-    
-    await markAsRead(message.messageId);
     const response = await handleMessage(message.from, message.text);
     await sendMessage(message.from, response);
   } catch (err) {
-    console.error('Error handling message:', err);
-    if (sendMessage) {
-      const from = req.body.From?.replace('whatsapp:', '') || req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0]?.from;
-      if (from) await sendMessage(from, "Sorry, something went wrong. Please try again.");
-    }
+    console.error('WhatsApp error:', err);
+  }
+});
+
+// Telegram webhook
+app.post('/telegram', async (req, res) => {
+  res.sendStatus(200);
+
+  try {
+    await loadModules();
+    const message = parseTelegramWebhook(req.body);
+    if (!message) return;
+    const response = await handleMessage(message.from, message.text);
+    await sendTelegramMessage(message.chatId, response);
+  } catch (err) {
+    console.error('Telegram error:', err);
   }
 });
 
