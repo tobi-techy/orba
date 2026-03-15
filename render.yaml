@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: orba
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: orba-db
+          property: connectionString
+      - key: PORT
+        value: 3001
+      - key: GROQ_API_KEY
+        sync: false
+      - key: MASTER_SEED
+        sync: false
+      - key: OPERATOR_PRIVATE_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_WHATSAPP_NUMBER
+        sync: false
+      - key: CELO_RPC_URL
+        value: https://forno.celo-sepolia.celo-testnet.org
+      - key: PREDICTION_MARKET_ADDRESS
+        value: "0xab0CC9C0204F50B3856782Ae2aE590885c735a93"
+
+databases:
+  - name: orba-db
+    plan: free
+    databaseName: orba
+    user: orba
