@@ -2,6 +2,30 @@ import express from 'express';
 import { config } from './config';
 
 const app = express();
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
+
+// Rate limiting per user (max 10 messages per minute)
+const rateLimits = new Map<string, number[]>();
+function isRateLimited(userId: string): boolean {
+  const now = Date.now();
+  const timestamps = (rateLimits.get(userId) || []).filter(t => now - t < 60000);
+  if (timestamps.length >= 10) return true;
+  timestamps.push(now);
+  rateLimits.set(userId, timestamps);
+  return false;
+}
+// Clean up rate limits every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of rateLimits) {
+    const filtered = v.filter(t => now - t < 60000);
+    if (!filtered.length) rateLimits.delete(k);
+    else rateLimits.set(k, filtered);
+  }
+}, 300000);
+
+const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -72,6 +96,9 @@ app.post('/telegram', async (req, res) => {
     const telegram = await import('./telegram');
     const message = telegram.parseTelegramWebhook(req.body);
     if (!message) return;
+
+    // Rate limit check
+    if (isRateLimited(message.from)) return;
 
     // Answer callback query if present
     if (req.body.callback_query) {

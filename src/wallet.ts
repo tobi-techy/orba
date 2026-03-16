@@ -1,23 +1,33 @@
 import { mnemonicToAccount } from 'viem/accounts';
-import { createPublicClient, http, formatUnits } from 'viem';
-import { celoAlfajores } from 'viem/chains';
+import { createPublicClient, http, formatUnits, defineChain } from 'viem';
 import { config } from './config';
 import { prisma } from './db';
 
+const celoSepolia = defineChain({
+  id: config.celo.chainId,
+  name: 'Celo Sepolia',
+  nativeCurrency: { name: 'CELO', symbol: 'CELO', decimals: 18 },
+  rpcUrls: { default: { http: [config.celo.rpcUrl] } },
+});
+
 const publicClient = createPublicClient({
-  chain: celoAlfajores,
+  chain: celoSepolia,
   transport: http(config.celo.rpcUrl),
 });
 
-// Derive deterministic wallet from phone number
+// Derive deterministic wallet from user index
 function deriveWallet(index: number) {
   return mnemonicToAccount(config.celo.masterSeed, { addressIndex: index });
 }
 
 export async function getOrCreateWallet(phoneNumber: string) {
-  let user = await prisma.user.findUnique({ where: { phoneNumber } });
+  // Sanitize input
+  const sanitized = phoneNumber.replace(/[^a-zA-Z0-9+_-]/g, '').slice(0, 64);
+  if (!sanitized) throw new Error('Invalid user identifier');
+
+  let user = await prisma.user.findUnique({ where: { phoneNumber: sanitized } });
   if (!user) {
-    user = await prisma.user.create({ data: { phoneNumber } });
+    user = await prisma.user.create({ data: { phoneNumber: sanitized } });
   }
   const account = deriveWallet(user.walletIndex);
   return { address: account.address, account, userId: user.id };

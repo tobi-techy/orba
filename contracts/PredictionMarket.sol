@@ -42,6 +42,10 @@ contract PredictionMarket {
     }
 
     function createMarket(string calldata question, uint256 resolutionTime, bytes32 oracleData) external returns (uint256) {
+        require(bytes(question).length > 0 && bytes(question).length <= 500, "invalid question");
+        require(resolutionTime > block.timestamp + 5 minutes, "resolution too soon");
+        require(resolutionTime < block.timestamp + 365 days, "resolution too far");
+        
         uint256 marketId = marketCount++;
         markets[marketId] = Market({
             question: question,
@@ -76,6 +80,7 @@ contract PredictionMarket {
 
     /// @notice Buy shares - positive amount for YES, negative for NO
     function buy(uint256 marketId, bool isYes, uint256 amount) external returns (uint256 cost) {
+        require(amount > 0 && amount <= 1_000_000e18, "invalid amount");
         Market storage m = markets[marketId];
         require(!m.resolved, "resolved");
         require(block.timestamp < m.resolutionTime, "expired");
@@ -128,6 +133,7 @@ contract PredictionMarket {
         Market storage m = markets[marketId];
         require(!m.resolved, "already resolved");
         require(outcome <= 1, "invalid outcome");
+        require(block.timestamp >= m.resolutionTime, "too early");
         
         m.resolved = true;
         m.outcome = outcome;
@@ -144,7 +150,7 @@ contract PredictionMarket {
         
         require(winningShares > 0, "no winning shares");
         
-        // Clear shares
+        // Clear ALL shares to prevent re-entrancy
         yesShares[marketId][msg.sender] = 0;
         noShares[marketId][msg.sender] = 0;
         
@@ -155,6 +161,7 @@ contract PredictionMarket {
 
     function setOwner(address newOwner) external {
         require(msg.sender == owner, "only owner");
+        require(newOwner != address(0), "zero address");
         owner = newOwner;
     }
 }

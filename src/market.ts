@@ -1,8 +1,14 @@
-import { createPublicClient, createWalletClient, http, parseAbi, formatUnits } from 'viem';
-import { celoAlfajores } from 'viem/chains';
+import { createPublicClient, createWalletClient, http, parseAbi, formatUnits, defineChain } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { config } from './config';
 import { prisma } from './db';
+
+const celoSepolia = defineChain({
+  id: config.celo.chainId,
+  name: 'Celo Sepolia',
+  nativeCurrency: { name: 'CELO', symbol: 'CELO', decimals: 18 },
+  rpcUrls: { default: { http: [config.celo.rpcUrl] } },
+});
 
 const abi = parseAbi([
   'function createMarket(string question, uint256 resolutionTime, bytes32 oracleData) returns (uint256)',
@@ -25,7 +31,7 @@ export class MarketService {
   constructor(contractAddress: `0x${string}`) {
     this.contractAddress = contractAddress;
     this.publicClient = createPublicClient({
-      chain: celoAlfajores,
+      chain: celoSepolia,
       transport: http(config.celo.rpcUrl),
     });
   }
@@ -33,7 +39,7 @@ export class MarketService {
   private getWalletClient(account: ReturnType<typeof privateKeyToAccount>) {
     return createWalletClient({
       account,
-      chain: celoAlfajores,
+      chain: celoSepolia,
       transport: http(config.celo.rpcUrl),
     });
   }

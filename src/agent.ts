@@ -113,8 +113,12 @@ async function executeFunction(name: string, args: any, phoneNumber: string) {
     case 'place_bet': {
       const market = await prisma.market.findUnique({ where: { id: args.market_id } });
       if (!market) return '❌ Market not found';
+      if (market.resolved) return '❌ Market already resolved';
+      if (args.amount <= 0 || args.amount > 10000) return '❌ Bet amount must be between $0.01 and $10,000';
       
-      // For now, just record the intent (actual on-chain tx needs deployed contract)
+      const balance = await getBalance(address);
+      if (parseFloat(balance) < args.amount) return `❌ Insufficient balance. You have ${balance} cUSD`;
+      
       return `✅ Bet placed!\n\n$${args.amount} on ${args.side.toUpperCase()}\nMarket: "${market.question}"`;
     }
 
