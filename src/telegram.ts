@@ -5,6 +5,8 @@ interface TelegramMessage {
   text: string;
   chatId: number;
   isCommand?: boolean;
+  isGroup?: boolean;
+  senderName?: string;
 }
 
 export function parseTelegramWebhook(body: any): TelegramMessage | null {
@@ -15,13 +17,18 @@ export function parseTelegramWebhook(body: any): TelegramMessage | null {
     
     if (!from) return null;
     
-    // Handle callback button presses
+    const chatType = (body.message || body.callback_query?.message)?.chat?.type;
+    const isGroup = chatType === 'group' || chatType === 'supergroup';
+    const senderName = [from.first_name, from.last_name].filter(Boolean).join(' ') || from.username || 'Someone';
+
     if (callbackData) {
       return {
         from: from.id.toString(),
         text: callbackData,
         chatId: message.chat.id,
         isCommand: true,
+        isGroup,
+        senderName,
       };
     }
     
@@ -32,6 +39,8 @@ export function parseTelegramWebhook(body: any): TelegramMessage | null {
       text: message.text,
       chatId: message.chat.id,
       isCommand: message.text.startsWith('/'),
+      isGroup,
+      senderName,
     };
   } catch {
     return null;

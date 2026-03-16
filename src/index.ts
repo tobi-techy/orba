@@ -88,7 +88,63 @@ app.post('/telegram', async (req, res) => {
       return;
     }
 
-    // Handle button presses
+    // GROUP MODE: listen for hot takes
+    if (message.isGroup && !message.isCommand && !message.text.startsWith('/')) {
+      // Skip short messages
+      if (message.text.length < 10) return;
+
+      const { detectHotTake } = await import('./hotTakeDetector');
+      const hotTake = await detectHotTake(message.text, message.senderName || 'Someone');
+      if (hotTake) {
+        const callbackData = `create_from_take:${hotTake.question}:${hotTake.oracleType}`;
+        await telegram.sendTelegramMessage(
+          message.chatId,
+          `🔥 *Hot take detected!*\n\n_${message.senderName} thinks:_ "${message.text}"\n\n📊 *Suggested market:*\n"${hotTake.question}"\n\nWant to bet on this?`,
+          [
+            ['✅ Create Market', '❌ Skip'],
+          ]
+        );
+        // Store pending market for this group
+        pendingGroupMarkets.set(message.chatId, {
+          question: hotTake.question,
+          oracleType: hotTake.oracleType,
+          suggestedBy: message.from,
+          senderName: message.senderName || 'Someone',
+        });
+      }
+      return;
+    }
+
+    // Handle "Create Market" button from group hot take
+    if (message.text === '✅ Create Market' && pendingGroupMarkets.has(message.chatId)) {
+      const pending = pendingGroupMarkets.get(message.chatId)!;
+      pendingGroupMarkets.delete(message.chatId);
+
+      const response = await handleMessage(
+        message.from,
+        `Create a market: ${pending.question}`
+      );
+      await telegram.sendTelegramMessage(message.chatId, response, [
+        ['🟢 Bet YES', '🔴 Bet NO'],
+        ['💰 My Balance', '📊 View Markets'],
+      ]);
+      return;
+    }
+
+    if (message.text === '❌ Skip') {
+      pendingGroupMarkets.delete(message.chatId);
+      return;
+    }
+
+    // Handle bet buttons
+    if (message.text === '🟢 Bet YES' || message.text === '🔴 Bet NO') {
+      const side = message.text.includes('YES') ? 'yes' : 'no';
+      const response = await handleMessage(message.from, `Place $1 bet on ${side}`);
+      await telegram.sendTelegramMessage(message.chatId, response);
+      return;
+    }
+
+    // Handle button presses (private chat)
     const buttonMap: Record<string, string> = {
       '💰 My Balance': 'What is my balance?',
       '📊 View Markets': 'Show me all markets',
@@ -104,6 +160,14 @@ app.post('/telegram', async (req, res) => {
     console.error('Telegram error:', err);
   }
 });
+
+// Store pending group markets
+const pendingGroupMarkets = new Map<number, {
+  question: string;
+  oracleType: string;
+  suggestedBy: string;
+  senderName: string;
+}>();
 
 app.listen(config.port, () => {
   console.log(`Server running on port ${config.port}`);

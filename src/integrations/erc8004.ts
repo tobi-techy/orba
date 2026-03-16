@@ -1,7 +1,13 @@
-import { createWalletClient, createPublicClient, http, parseAbi } from 'viem';
-import { celoAlfajores } from 'viem/chains';
+import { createWalletClient, createPublicClient, http, parseAbi, defineChain } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { config } from './config';
+import { config } from '../config';
+
+const celoSepolia = defineChain({
+  id: 11142220,
+  name: 'Celo Sepolia',
+  nativeCurrency: { name: 'CELO', symbol: 'CELO', decimals: 18 },
+  rpcUrls: { default: { http: ['https://forno.celo-sepolia.celo-testnet.org'] } },
+});
 
 // ERC-8004 Identity Registry on Celo Sepolia
 const IDENTITY_REGISTRY = '0x8004A818BFB912233c491871b3d84c89A494BD9e' as const;
