@@ -69,10 +69,37 @@ app.post('/telegram', async (req, res) => {
 
   try {
     await loadModules();
-    const message = parseTelegramWebhook(req.body);
+    const telegram = await import('./telegram');
+    const message = telegram.parseTelegramWebhook(req.body);
     if (!message) return;
-    const response = await handleMessage(message.from, message.text);
-    await sendTelegramMessage(message.chatId, response);
+
+    // Answer callback query if present
+    if (req.body.callback_query) {
+      await telegram.answerCallback(req.body.callback_query.id);
+    }
+
+    // Handle /start command
+    if (message.text === '/start') {
+      await telegram.sendTelegramMessage(
+        message.chatId,
+        telegram.WELCOME_MESSAGE,
+        telegram.WELCOME_BUTTONS
+      );
+      return;
+    }
+
+    // Handle button presses
+    const buttonMap: Record<string, string> = {
+      '💰 My Balance': 'What is my balance?',
+      '📊 View Markets': 'Show me all markets',
+      '➕ Create Market': 'I want to create a new prediction market',
+      '📈 My Portfolio': 'Show my portfolio',
+      'ℹ️ How to Deposit': 'How do I deposit funds?',
+    };
+    const text = buttonMap[message.text] || message.text;
+
+    const response = await handleMessage(message.from, text);
+    await telegram.sendTelegramMessage(message.chatId, response);
   } catch (err) {
     console.error('Telegram error:', err);
   }

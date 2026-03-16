@@ -67,20 +67,29 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'get_balance',
-      description: 'Get user cUSD balance',
+      description: 'Get user cUSD balance and wallet address',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_deposit_info',
+      description: 'Get deposit instructions and wallet address for funding',
       parameters: { type: 'object', properties: {} },
     },
   },
 ];
 
-const systemPrompt = `You are Orba, a friendly prediction market assistant on WhatsApp. You help users:
+const systemPrompt = `You are Orba, a friendly AI prediction market assistant on Telegram/WhatsApp. You help users:
 - Create prediction markets on crypto prices or sports outcomes
-- Place bets (YES/NO) on markets using cUSD stablecoins
-- Check their portfolio and balances
+- Place bets (YES/NO) on markets using cUSD stablecoins on Celo
+- Check their portfolio, balances, and deposit instructions
 
-Be concise and conversational. Use emojis sparingly. Format prices as percentages (e.g., "YES at 65%").
+Be concise and conversational. Use emojis. Format amounts in cUSD.
+When users ask how to deposit or fund their wallet, use get_deposit_info.
 When users want to bet, confirm the market, side, and amount before executing.
-For crypto markets, extract the coin, target price, and direction (above/below).
+For crypto markets, extract the coin, target price, and direction.
 For sports markets, extract the teams and match details.`;
 
 // Simple in-memory context (last 5 messages per user)
@@ -129,7 +138,27 @@ async function executeFunction(name: string, args: any, phoneNumber: string) {
 
     case 'get_balance': {
       const balance = await getBalance(address);
-      return `💰 Balance: ${balance} cUSD\n📍 Wallet: ${address.slice(0, 6)}...${address.slice(-4)}`;
+      return `💰 *Balance:* ${balance} cUSD\n📍 *Wallet:* \`${address}\``;
+    }
+
+    case 'get_deposit_info': {
+      return `💳 *How to Deposit cUSD*
+
+Your wallet address:
+\`${address}\`
+
+*Steps:*
+1. Get testnet CELO from faucet:
+   https://faucet.celo.org/celo-sepolia
+
+2. Swap CELO for cUSD on Uniswap or get cUSD directly
+
+3. Send cUSD to your wallet address above
+
+*Network:* Celo Sepolia Testnet
+*Token:* cUSD (Celo Dollar)
+
+Once funded, you can place bets on prediction markets!`;
     }
 
     default:
