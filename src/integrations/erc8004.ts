@@ -57,7 +57,7 @@ export async function registerAgent(agentURI: string): Promise<{ agentId: bigint
   const account = privateKeyToAccount(config.celo.operatorKey as `0x${string}`);
   const walletClient = createWalletClient({
     account,
-    chain: celoAlfajores,
+    chain: celoSepolia,
     transport: http(config.celo.rpcUrl),
   });
 
@@ -68,9 +68,8 @@ export async function registerAgent(agentURI: string): Promise<{ agentId: bigint
     args: [agentURI],
   });
 
-  // Get agentId from transaction receipt
   const publicClient = createPublicClient({
-    chain: celoAlfajores,
+    chain: celoSepolia,
     transport: http(config.celo.rpcUrl),
   });
 
@@ -84,7 +83,7 @@ export async function registerAgent(agentURI: string): Promise<{ agentId: bigint
 
 export async function getAgentURI(agentId: bigint): Promise<string> {
   const publicClient = createPublicClient({
-    chain: celoAlfajores,
+    chain: celoSepolia,
     transport: http(config.celo.rpcUrl),
   });
 
@@ -101,7 +100,7 @@ export async function registerOrbaAgent(walletAddress: string): Promise<{ agentI
   const metadata: AgentMetadata = {
     type: 'Agent',
     name: 'Orba Prediction Markets',
-    description: 'WhatsApp-based conversational prediction market agent on Celo. Create markets, place bets, and get paid through natural language.',
+    description: 'Conversational prediction market agent on Celo. Create markets, place leveraged bets, and get paid through natural language on Telegram and WhatsApp.',
     endpoints: [
       { type: 'wallet', address: walletAddress, chainId: 44787 },
     ],
