@@ -177,6 +177,22 @@ app.post('/telegram', async (req, res) => {
     // Handle bet buttons
     if (message.text === 'Bet YES' || message.text === 'Bet NO') {
       const side = message.text.includes('YES') ? 'yes' : 'no';
+
+      // If in a group, DM the user to set up wallet first
+      if (message.isGroup) {
+        await telegram.sendTelegramMessage(
+          message.chatId,
+          `@${message.senderName}, DM me to place your bet and set up your wallet first!`
+        );
+        // Send DM to user
+        await telegram.sendTelegramMessage(
+          parseInt(message.from),
+          `Hi! To bet on this market, you need a wallet first.\n\nSend /start to set up your wallet, then come back and bet.`,
+          [['Balance', 'How to Deposit']]
+        );
+        return;
+      }
+
       const stopTyping2 = telegram.sendTypingAction(message.chatId);
       const response = await handleMessage(message.from, `Place $1 bet on ${side}`);
       stopTyping2();
