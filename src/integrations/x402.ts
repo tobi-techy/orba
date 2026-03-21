@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { createWalletClient, http, parseUnits } from 'viem';
 import { celoAlfajores } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
-import { config } from './config';
+import { config } from '../config';
 
 // x402 Payment Protocol
 // When a request requires payment, return 402 with payment details

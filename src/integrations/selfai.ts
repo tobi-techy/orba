@@ -1,5 +1,5 @@
 import { privateKeyToAccount, signMessage } from 'viem/accounts';
-import { config } from './config';
+import { config } from '../config';
 
 // Self AI agent verification
 // Docs: https://app.ai.self.xyz/integration
