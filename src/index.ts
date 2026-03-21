@@ -1,5 +1,7 @@
 import express from 'express';
 import { config } from './config';
+import { startResolver } from './resolver';
+import { startAIAgent } from './aiAgent';
 
 const app = express();
 app.use(express.json({ limit: '1mb' }));
@@ -101,13 +103,24 @@ app.post('/telegram', async (req, res) => {
       await telegram.answerCallback(req.body.callback_query.id);
     }
 
-    // Handle /start command
-    if (message.text === '/start') {
-      await telegram.sendTelegramMessage(
-        message.chatId,
-        telegram.WELCOME_MESSAGE,
-        telegram.WELCOME_BUTTONS
-      );
+    // Handle /start and /help commands
+    if (message.text === '/start' || message.text === '/help') {
+      // On /start, also show wallet info as onboarding
+      if (message.text === '/start') {
+        await telegram.sendTelegramMessage(
+          message.chatId,
+          telegram.WELCOME_MESSAGE,
+          telegram.WELCOME_BUTTONS
+        );
+        // Send wallet onboarding as follow-up
+        const { handleMessage } = await import('./agent');
+        const stopT = telegram.sendTypingAction(message.chatId);
+        const walletInfo = await handleMessage(message.from, 'What is my balance and wallet address?');
+        stopT();
+        await telegram.sendTelegramMessage(message.chatId, walletInfo);
+      } else {
+        await telegram.sendTelegramMessage(message.chatId, telegram.HELP_MESSAGE);
+      }
       return;
     }
 
@@ -122,9 +135,9 @@ app.post('/telegram', async (req, res) => {
         const callbackData = `create_from_take:${hotTake.question}:${hotTake.oracleType}`;
         await telegram.sendTelegramMessage(
           message.chatId,
-          `🔥 *Hot take detected!*\n\n_${message.senderName} thinks:_ "${message.text}"\n\n📊 *Suggested market:*\n"${hotTake.question}"\n\nWant to bet on this?`,
+          `*Hot take detected*\n\n_${message.senderName}:_ "${message.text}"\n\nSuggested market: "${hotTake.question}"\n\nWant to bet on this?`,
           [
-            ['✅ Create Market', '❌ Skip'],
+            ['Create Market', 'Skip'],
           ]
         );
         // Store pending market for this group
@@ -139,45 +152,65 @@ app.post('/telegram', async (req, res) => {
     }
 
     // Handle "Create Market" button from group hot take
-    if (message.text === '✅ Create Market' && pendingGroupMarkets.has(message.chatId)) {
+    if (message.text === 'Create Market' && pendingGroupMarkets.has(message.chatId)) {
       const pending = pendingGroupMarkets.get(message.chatId)!;
       pendingGroupMarkets.delete(message.chatId);
 
+      const stopTyping1 = telegram.sendTypingAction(message.chatId);
       const response = await handleMessage(
         message.from,
         `Create a market: ${pending.question}`
       );
+      stopTyping1();
       await telegram.sendTelegramMessage(message.chatId, response, [
-        ['🟢 Bet YES', '🔴 Bet NO'],
-        ['💰 My Balance', '📊 View Markets'],
+        ['Bet YES', 'Bet NO'],
+        ['Balance', 'Markets'],
       ]);
       return;
     }
 
-    if (message.text === '❌ Skip') {
+    if (message.text === 'Skip') {
       pendingGroupMarkets.delete(message.chatId);
       return;
     }
 
     // Handle bet buttons
-    if (message.text === '🟢 Bet YES' || message.text === '🔴 Bet NO') {
+    if (message.text === 'Bet YES' || message.text === 'Bet NO') {
       const side = message.text.includes('YES') ? 'yes' : 'no';
+      const stopTyping2 = telegram.sendTypingAction(message.chatId);
       const response = await handleMessage(message.from, `Place $1 bet on ${side}`);
+      stopTyping2();
       await telegram.sendTelegramMessage(message.chatId, response);
       return;
     }
 
     // Handle button presses (private chat)
     const buttonMap: Record<string, string> = {
-      '💰 My Balance': 'What is my balance?',
-      '📊 View Markets': 'Show me all markets',
-      '➕ Create Market': 'I want to create a new prediction market',
-      '📈 My Portfolio': 'Show my portfolio',
-      'ℹ️ How to Deposit': 'How do I deposit funds?',
+      'Balance': 'What is my balance?',
+      'Markets': 'Show me all markets',
+      'Create Market': 'I want to create a new prediction market',
+      'Portfolio': 'Show my portfolio',
+      'How to Deposit': 'How do I deposit funds?',
     };
-    const text = buttonMap[message.text] || message.text;
+    let text = buttonMap[message.text] || message.text;
 
+    // Resolve market number aliases: "bet $5 on #2 yes" → inject real market ID
+    const aliasMatch = text.match(/#(\d+)/);
+    if (aliasMatch) {
+      const idx = parseInt(aliasMatch[1]) - 1;
+      const markets = await (await import('./db')).prisma.market.findMany({
+        where: { resolved: false },
+        orderBy: { resolutionTime: 'asc' },
+        take: 10,
+      });
+      if (markets[idx]) {
+        text = text.replace(`#${aliasMatch[1]}`, `market ID ${markets[idx].id}`);
+      }
+    }
+
+    const stopTyping = telegram.sendTypingAction(message.chatId);
     const response = await handleMessage(message.from, text);
+    stopTyping();
     await telegram.sendTelegramMessage(message.chatId, response);
   } catch (err) {
     console.error('Telegram error:', err);
@@ -192,6 +225,28 @@ const pendingGroupMarkets = new Map<number, {
   senderName: string;
 }>();
 
-app.listen(config.port, () => {
+app.listen(config.port, async () => {
   console.log(`Server running on port ${config.port}`);
+  startResolver();
+  startAIAgent();
+
+  // Auto-register Telegram webhook
+  if (config.telegram.botToken) {
+    const renderUrl = process.env.RENDER_EXTERNAL_URL;
+    if (renderUrl) {
+      const webhookUrl = `${renderUrl}/telegram`;
+      const res = await fetch(
+        `https://api.telegram.org/bot${config.telegram.botToken}/setWebhook`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: webhookUrl, drop_pending_updates: true }),
+        }
+      );
+      const data = await res.json() as any;
+      console.log('Telegram webhook:', data.ok ? `registered → ${webhookUrl}` : data.description);
+    } else {
+      console.log('RENDER_EXTERNAL_URL not set — skipping webhook registration');
+    }
+  }
 });

@@ -90,25 +90,62 @@ export async function answerCallback(callbackId: string): Promise<void> {
   } catch {}
 }
 
-export const WELCOME_MESSAGE = `🎯 *Welcome to Orba!*
+async function sendChatAction(chatId: number): Promise<void> {
+  try {
+    await fetch(`https://api.telegram.org/bot${config.telegram.botToken}/sendChatAction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, action: 'typing' }),
+    });
+  } catch {}
+}
 
-I'm your AI-powered prediction market assistant on Celo.
+// Keeps "typing..." visible until the returned stop() is called
+export function sendTypingAction(chatId: number): () => void {
+  sendChatAction(chatId);
+  const interval = setInterval(() => sendChatAction(chatId), 4000);
+  return () => clearInterval(interval);
+}
 
-*What I can do:*
-• Create prediction markets (crypto, sports)
-• Place bets with cUSD stablecoins
-• Track your portfolio & winnings
-• Auto-resolve markets via oracles
+export const WELCOME_MESSAGE = `*Welcome to Orba* 🎯
 
-*Powered by:*
-🔗 Celo Sepolia Testnet
-🤖 ERC-8004 Agent Identity
-✅ Self AI Verified
+Your AI prediction market assistant on Celo.
 
-Tap a button or just chat naturally!`;
+*What you can do:*
+• Create markets on crypto prices or sports
+• Bet YES/NO with cUSD stablecoins
+• Track your portfolio and winnings
+
+Just chat naturally or use the buttons below.`;
+
+export const HELP_MESSAGE = `*Orba Commands*
+
+*Markets*
+• "Show me markets" — list open markets
+• "Find markets about BTC" — search by topic
+• "Trending markets" — top markets by volume
+
+*Betting*
+• "Bet $5 on YES for market #1" — place a bet
+• "Bet $10 on NO with 2x leverage" — leveraged bet
+• Markets are listed as #1, #2, etc.
+
+*Portfolio*
+• "My balance" — check cUSD balance
+• "My portfolio" — see your positions
+• "How to deposit" — funding instructions
+
+*AI Features*
+• "Analyse BTC" — market insights
+• "I think ETH will dump" — debate mode
+• "Daily challenge" — gamified predictions
+
+*Fast Markets*
+• "Create a 5-min market: will BTC move 1%?"
+• "Create a 1-hour market on ETH price"`;
 
 export const WELCOME_BUTTONS = [
-  ['💰 My Balance', '📊 View Markets'],
-  ['➕ Create Market', '📈 My Portfolio'],
-  ['ℹ️ How to Deposit'],
+  ['Balance', 'Markets'],
+  ['Create Market', 'Portfolio'],
+  ['How to Deposit'],
 ];

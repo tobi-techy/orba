@@ -24,6 +24,7 @@ model Market {
   oracleType     String     // "crypto" | "sports"
   oracleData     Json       // { coin, targetPrice, direction } or { matchId, team1, team2 }
   resolutionTime DateTime
+  durationMins   Int?       // 5, 60, 1440 (same-day) — null = manual
   resolved       Boolean    @default(false)
   outcome        Int?       // 0 = NO, 1 = YES
   createdAt      DateTime   @default(now())
@@ -33,13 +34,16 @@ model Market {
 }
 
 model Position {
-  id        String   @id @default(cuid())
-  userId    String
-  marketId  String
-  yesShares BigInt   @default(0)
-  noShares  BigInt   @default(0)
-  user      User     @relation(fields: [userId], references: [id])
-  market    Market   @relation(fields: [marketId], references: [id])
+  id               String   @id @default(cuid())
+  userId           String
+  marketId         String
+  yesShares        BigInt   @default(0)
+  noShares         BigInt   @default(0)
+  leverage         Int      @default(1)  // 1, 2, 3, 5
+  liquidationPrice Float?   // price at which position is liquidated (crypto markets)
+  liquidated       Boolean  @default(false)
+  user             User     @relation(fields: [userId], references: [id])
+  market           Market   @relation(fields: [marketId], references: [id])
   @@unique([userId, marketId])
 }
 
@@ -50,8 +54,21 @@ model Trade {
   outcome   Int      // 0 = NO, 1 = YES
   shares    BigInt
   cost      BigInt
+  leverage  Int      @default(1)
   txHash    String?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id])
   market    Market   @relation(fields: [marketId], references: [id])
+}
+
+model DailyChallenge {
+  id          String   @id @default(cuid())
+  userId      String
+  date        String   // YYYY-MM-DD
+  target      Int      @default(3)   // predict N markets correctly
+  completed   Int      @default(0)
+  done        Boolean  @default(false)
+  rewardPaid  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  @@unique([userId, date])
 }
