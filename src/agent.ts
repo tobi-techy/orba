@@ -4,7 +4,7 @@ import { getOrCreateWallet, getBalance } from './wallet';
 import { MarketService } from './market';
 import { prisma } from './db';
 import { getCryptoPrice } from './oracles/crypto';
-import { searchPolymarkets, getTrendingPolymarkets, formatPolymarket, PolymarketMarket } from './integrations/polymarket';
+import { searchPolymarkets, getTrendingPolymarkets, getPolymarketsByCategory, getPolymarketsEndingSoon, formatPolymarket, PolymarketMarket } from './integrations/polymarket';
 import { sendTelegramMessageWithKeyboard } from './telegram';
 
 // Pending bet state: waiting for amount after user clicked YES/NO on a market
@@ -423,9 +423,12 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
 
       // 2. Search Polymarket (with fallback)
       try {
+        const category = detectCategory(args.query);
         const polyMarkets = isTrendingQuery
           ? await getTrendingPolymarkets(5)
-          : await searchPolymarkets(args.query, 5);
+          : category
+            ? await getPolymarketsByCategory(category, 5)
+            : await searchPolymarkets(args.query, 5);
 
         if (polyMarkets.length) {
           if (chatId) {
@@ -461,6 +464,27 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
     default:
       return 'Unknown action';
   }
+}
+
+// Map natural language to Polymarket tag slugs
+const CATEGORY_MAP: Record<string, string> = {
+  politics: 'politics', political: 'politics', election: 'politics', elections: 'politics', trump: 'politics', government: 'politics',
+  sports: 'sports', sport: 'sports', football: 'sports', soccer: 'sports', basketball: 'sports', nba: 'sports',
+  nfl: 'sports', baseball: 'sports', tennis: 'sports', mls: 'sports', fifa: 'sports', lakers: 'sports',
+  warriors: 'sports', nhl: 'sports', ufc: 'sports', boxing: 'sports',
+  crypto: 'crypto', bitcoin: 'crypto', btc: 'crypto', eth: 'crypto', ethereum: 'crypto', solana: 'crypto',
+  defi: 'crypto', web3: 'crypto', blockchain: 'crypto',
+  'pop-culture': 'pop-culture', popculture: 'pop-culture', celebrity: 'pop-culture', music: 'pop-culture',
+  entertainment: 'pop-culture', movies: 'pop-culture', tv: 'pop-culture', oscars: 'pop-culture',
+  science: 'science', tech: 'technology', technology: 'technology', ai: 'technology',
+};
+
+function detectCategory(text: string): string | null {
+  const lower = text.toLowerCase();
+  for (const [keyword, slug] of Object.entries(CATEGORY_MAP)) {
+    if (new RegExp(`\\b${keyword}\\b`).test(lower)) return slug;
+  }
+  return null;
 }
 
 // Patterns that should always trigger a market search
