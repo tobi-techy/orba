@@ -151,6 +151,38 @@ app.post('/telegram', async (req, res) => {
       return;
     }
 
+    // Handle YES/NO bet button taps from search results
+    if (message.text.startsWith('bet:yes:') || message.text.startsWith('bet:no:')) {
+      const [, side, ...rest] = message.text.split(':');
+      const question = decodeURIComponent(rest.join(':'));
+      pendingBetPrompts.set(message.from, { question, side: side as 'yes' | 'no' });
+      await telegram.sendTelegramMessageWithKeyboard(
+        message.chatId,
+        `You picked *${side.toUpperCase()}* on:\n_${question}_\n\nHow much cUSD?`,
+        [
+          [{ text: '$1', callback_data: `amount:1:1` }, { text: '$5', callback_data: `amount:5:1` }, { text: '$10', callback_data: `amount:10:1` }],
+          [{ text: '$5 (2x)', callback_data: `amount:5:2` }, { text: '$5 (3x)', callback_data: `amount:5:3` }, { text: '$10 (2x)', callback_data: `amount:10:2` }],
+        ]
+      );
+      return;
+    }
+
+    // Handle amount selection after YES/NO tap
+    if (message.text.startsWith('amount:') && pendingBetPrompts.has(message.from)) {
+      const { question, side } = pendingBetPrompts.get(message.from)!;
+      pendingBetPrompts.delete(message.from);
+      const [, amount, leverage] = message.text.split(':');
+      const stopTyping = telegram.sendTypingAction(message.chatId);
+      const response = await handleMessage(
+        message.from,
+        `bet $${amount} ${side} on ${question}${leverage !== '1' ? ` with ${leverage}x leverage` : ''}`,
+        message.chatId
+      );
+      stopTyping();
+      await telegram.sendTelegramMessage(message.chatId, response);
+      return;
+    }
+
     // Handle "Create Market" button from group hot take
     if (message.text === 'Create Market' && pendingGroupMarkets.has(message.chatId)) {
       const pending = pendingGroupMarkets.get(message.chatId)!;
@@ -225,7 +257,7 @@ app.post('/telegram', async (req, res) => {
     }
 
     const stopTyping = telegram.sendTypingAction(message.chatId);
-    const response = await handleMessage(message.from, text);
+    const response = await handleMessage(message.from, text, message.chatId);
     stopTyping();
     await telegram.sendTelegramMessage(message.chatId, response);
   } catch (err) {
@@ -240,6 +272,9 @@ const pendingGroupMarkets = new Map<number, {
   suggestedBy: string;
   senderName: string;
 }>();
+
+// Store pending bet confirmations (waiting for amount after YES/NO button tap)
+const pendingBetPrompts = new Map<string, { question: string; side: 'yes' | 'no' }>();
 
 app.listen(config.port, async () => {
   console.log(`Server running on port ${config.port}`);

@@ -4,7 +4,11 @@ import { getOrCreateWallet, getBalance } from './wallet';
 import { MarketService } from './market';
 import { prisma } from './db';
 import { getCryptoPrice } from './oracles/crypto';
-import { searchPolymarkets, getTrendingPolymarkets, formatPolymarket } from './integrations/polymarket';
+import { searchPolymarkets, getTrendingPolymarkets, formatPolymarket, PolymarketMarket } from './integrations/polymarket';
+import { sendTelegramMessageWithKeyboard } from './telegram';
+
+// Pending bet state: waiting for amount after user clicked YES/NO on a market
+export const pendingBets = new Map<string, { question: string; side: 'yes' | 'no' }>();
 
 const client = new OpenAI({
   apiKey: config.groq.apiKey || config.openai.apiKey,
@@ -179,7 +183,7 @@ RESPONSE RULES:
 
 const userContext = new Map<string, { role: 'user' | 'assistant'; content: string }[]>();
 
-async function executeFunction(name: string, args: any, phoneNumber: string): Promise<string> {
+async function executeFunction(name: string, args: any, phoneNumber: string, chatId?: number): Promise<string> {
   const { userId, address } = await getOrCreateWallet(phoneNumber);
 
   switch (name) {
@@ -424,11 +428,27 @@ async function executeFunction(name: string, args: any, phoneNumber: string): Pr
           : await searchPolymarkets(args.query, 5);
 
         if (polyMarkets.length) {
-          results.push(
-            '*Polymarket (real-money, view only):*\n' +
-            polyMarkets.map((m, i) => `${i + 1}. ${formatPolymarket(m)}`).join('\n\n') +
-            '\n\n_Want to bet on one of these topics with cUSD? Say "create a market on [topic]" and I\'ll set one up for you._'
-          );
+          if (chatId) {
+            // Send each result as a separate message with YES/NO buttons
+            for (const m of polyMarkets) {
+              const priceStr = m.outcomes.map((o, i) => `${o}: ${Math.round((m.outcomePrices[i] || 0) * 100)}%`).join(' | ');
+              const vol = m.volume > 1000 ? `$${(m.volume / 1000).toFixed(0)}k` : `$${m.volume.toFixed(0)}`;
+              const end = m.endDate ? new Date(m.endDate).toLocaleDateString() : 'TBD';
+              const text = `*${m.question}*\n${priceStr}\nVolume: ${vol} | Ends: ${end}\n${m.url}`;
+              const q = encodeURIComponent(m.question).slice(0, 50); // keep callback_data ≤64 bytes
+              await sendTelegramMessageWithKeyboard(chatId, text, [[
+                { text: '✅ Bet YES', callback_data: `bet:yes:${q}` },
+                { text: '❌ Bet NO', callback_data: `bet:no:${q}` },
+              ]]);
+            }
+            results.push('_Tap YES or NO on any market above to place a bet._');
+          } else {
+            results.push(
+              '*Polymarket (real-money, view only):*\n' +
+              polyMarkets.map((m, i) => `${i + 1}. ${formatPolymarket(m)}`).join('\n\n') +
+              '\n\n_Want to bet? Say "bet $N YES on [question]"_'
+            );
+          }
         }
       } catch {
         // Polymarket unavailable — skip silently
@@ -454,7 +474,7 @@ function extractSearchQuery(text: string): string | null {
     .trim() || null;
 }
 
-export async function handleMessage(phoneNumber: string, text: string): Promise<string> {
+export async function handleMessage(phoneNumber: string, text: string, chatId?: number): Promise<string> {
   let context = userContext.get(phoneNumber) || [];
   context.push({ role: 'user', content: text });
   if (context.length > 10) context = context.slice(-10);
@@ -494,7 +514,7 @@ export async function handleMessage(phoneNumber: string, text: string): Promise<
       const results: string[] = [];
       for (const call of message.tool_calls) {
         const args = JSON.parse(call.function.arguments);
-        results.push(await executeFunction(call.function.name, args, phoneNumber));
+        results.push(await executeFunction(call.function.name, args, phoneNumber, chatId));
       }
       const reply = results.join('\n\n');
       context.push({ role: 'assistant', content: reply });

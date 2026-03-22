@@ -77,6 +77,31 @@ export async function sendTelegramMessage(chatId: number, text: string, buttons?
   }
 }
 
+export async function sendTelegramMessageWithKeyboard(
+  chatId: number,
+  text: string,
+  keyboard: { text: string; callback_data: string }[][]
+): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `https://api.telegram.org/bot${config.telegram.botToken}/sendMessage`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text,
+          parse_mode: 'Markdown',
+          reply_markup: { inline_keyboard: keyboard },
+        }),
+      }
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 export async function answerCallback(callbackId: string): Promise<void> {
   try {
     await fetch(
