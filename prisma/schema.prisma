@@ -8,12 +8,13 @@ datasource db {
 }
 
 model User {
-  id          String     @id @default(cuid())
-  phoneNumber String     @unique
-  walletIndex Int        @unique @default(autoincrement())
-  createdAt   DateTime   @default(now())
-  positions   Position[]
-  trades      Trade[]
+  id             String     @id @default(cuid())
+  phoneNumber    String     @unique
+  walletIndex    Int        @unique @default(autoincrement())
+  bettingBalance Float      @default(100)
+  createdAt      DateTime   @default(now())
+  positions      Position[]
+  trades         Trade[]
 }
 
 model Market {

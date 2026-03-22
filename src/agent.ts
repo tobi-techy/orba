@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { config } from './config';
-import { getOrCreateWallet, getBalance } from './wallet';
+import { getOrCreateWallet, getBalance, getBettingBalance, deductBettingBalance, creditBettingBalance } from './wallet';
 import { MarketService } from './market';
 import { prisma } from './db';
 import { getCryptoPrice } from './oracles/crypto';
@@ -258,8 +258,8 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
       const leverage = LEVERAGE_OPTIONS.includes(args.leverage) ? args.leverage : 1;
       const effectiveAmount = args.amount * leverage;
 
-      const balance = await getBalance(address);
-      if (parseFloat(balance) < args.amount) return `Insufficient balance. You have ${balance} CELO`;
+      const balance = await getBettingBalance(userId);
+      if (balance < args.amount) return `Insufficient balance. You have ${balance.toFixed(2)} CELO`;
 
       // Calculate liquidation price for leveraged crypto bets
       let liquidationPrice: number | null = null;
@@ -304,6 +304,8 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
         },
       });
 
+      await deductBettingBalance(userId, args.amount);
+
       let reply = `Bet placed! $${args.amount} on ${args.side.toUpperCase()}`;
       if (leverage > 1) {
         reply += ` (${leverage}x leverage → $${effectiveAmount} exposure)`;
@@ -346,8 +348,8 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
     }
 
     case 'get_balance': {
-      const balance = await getBalance(address);
-      return `Balance: ${balance} CELO\nWallet: \`${address}\``;
+      const bettingBal = await getBettingBalance(userId);
+      return `Betting Balance: ${bettingBal.toFixed(2)} CELO\nWallet: \`${address}\``;
     }
 
     case 'get_deposit_info': {

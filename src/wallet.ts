@@ -42,4 +42,17 @@ export async function getBalance(address: `0x${string}`): Promise<string> {
   }
 }
 
+export async function getBettingBalance(userId: string): Promise<number> {
+  const user = await import('./db').then(m => m.prisma.user.findUnique({ where: { id: userId }, select: { bettingBalance: true } }));
+  return user?.bettingBalance ?? 100;
+}
+
+export async function deductBettingBalance(userId: string, amount: number): Promise<void> {
+  await import('./db').then(m => m.prisma.user.update({ where: { id: userId }, data: { bettingBalance: { decrement: amount } } }));
+}
+
+export async function creditBettingBalance(userId: string, amount: number): Promise<void> {
+  await import('./db').then(m => m.prisma.user.update({ where: { id: userId }, data: { bettingBalance: { increment: amount } } }));
+}
+
 export { publicClient };
