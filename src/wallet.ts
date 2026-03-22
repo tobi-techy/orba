@@ -1,5 +1,5 @@
-import { mnemonicToAccount } from 'viem/accounts';
-import { createPublicClient, http, formatUnits, defineChain } from 'viem';
+import { mnemonicToAccount, privateKeyToAccount } from 'viem/accounts';
+import { createPublicClient, createWalletClient, http, formatUnits, defineChain } from 'viem';
 import { config } from './config';
 import { prisma } from './db';
 
@@ -53,6 +53,15 @@ export async function deductBettingBalance(userId: string, amount: number): Prom
 
 export async function creditBettingBalance(userId: string, amount: number): Promise<void> {
   await import('./db').then(m => m.prisma.user.update({ where: { id: userId }, data: { bettingBalance: { increment: amount } } }));
+}
+
+export function getWalletClient(account: ReturnType<typeof privateKeyToAccount> | ReturnType<typeof mnemonicToAccount>) {
+  return createWalletClient({ account, chain: celoSepolia, transport: http(config.celo.rpcUrl) });
+}
+
+export function getOperatorWalletClient() {
+  const account = privateKeyToAccount(config.celo.operatorKey as `0x${string}`);
+  return { client: getWalletClient(account), account };
 }
 
 export { publicClient };

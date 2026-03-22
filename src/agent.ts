@@ -1,6 +1,13 @@
 import OpenAI from 'openai';
 import { config } from './config';
-import { getOrCreateWallet, getBalance, publicClient } from './wallet';
+import { getOrCreateWallet, getBalance, publicClient, getWalletClient, getOperatorWalletClient } from './wallet';
+import { parseAbi, parseEther } from 'viem';
+
+const CONTRACT_ABI = parseAbi([
+  'function createMarket(string question, uint256 resolutionTime) returns (uint256)',
+  'function buy(uint256 marketId, bool isYes, uint256 amount) payable returns (uint256)',
+]);
+const CONTRACT = () => config.celo.contractAddress as `0x${string}`;
 import { MarketService } from './market';
 import { prisma } from './db';
 import { getCryptoPrice } from './oracles/crypto';
@@ -256,51 +263,52 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
       if (parseFloat(balance) < celoAmount) return `Insufficient balance. You have ${balance} CELO`;
 
       // Register market on-chain if not yet
-      if (!market.onChainId) {
+      if (market.onChainId === null || market.onChainId === undefined) {
         try {
-          const operatorAccount = (await import('viem/accounts')).privateKeyToAccount(
-            config.celo.operatorPrivateKey as `0x${string}`
-          );
-          const walletClient = (await import('viem')).createWalletClient({
-            account: operatorAccount,
-            chain: (await import('./wallet')).publicClient.chain,
-            transport: (await import('viem')).http(config.celo.rpcUrl),
-          });
-          const hash = await walletClient.writeContract({
-            address: config.celo.contractAddress as `0x${string}`,
-            abi: (await import('viem')).parseAbi(['function createMarket(string question, uint256 resolutionTime) returns (uint256)']),
+          const { client: opClient } = getOperatorWalletClient();
+          const resTimeSec = BigInt(Math.floor(market.resolutionTime.getTime() / 1000));
+          const hash = await opClient.writeContract({
+            address: CONTRACT(),
+            abi: CONTRACT_ABI,
             functionName: 'createMarket',
-            args: [market.question, BigInt(Math.floor(market.resolutionTime.getTime() / 1000))],
+            args: [market.question, resTimeSec],
           });
-          const receipt = await (await import('./wallet')).publicClient.waitForTransactionReceipt({ hash });
-          // Parse MarketCreated event to get onChainId
-          const log = receipt.logs[0];
-          const onChainId = log ? Number(BigInt(log.topics[1] || '0x0')) : 0;
+          const receipt = await publicClient.waitForTransactionReceipt({ hash });
+          const onChainId = receipt.logs[0] ? Number(BigInt(receipt.logs[0].topics[1] || '0x0')) : 0;
           market = await prisma.market.update({ where: { id: market.id }, data: { onChainId } });
-        } catch (e) {
-          console.error('On-chain market creation failed:', e);
-          // Fall through to off-chain only
+        } catch (e: any) {
+          console.error('On-chain market creation failed:', e.shortMessage || e.message);
         }
       }
 
       let txHash: string | undefined;
       if (market.onChainId !== null && market.onChainId !== undefined) {
         try {
-          txHash = await marketService.buy(market.id, userId, args.side === 'yes', celoAmount, account);
+          const walClient = getWalletClient(account);
+          const value = parseEther(celoAmount.toString());
+          txHash = await walClient.writeContract({
+            address: CONTRACT(),
+            abi: CONTRACT_ABI,
+            functionName: 'buy',
+            args: [BigInt(market.onChainId), args.side === 'yes', value],
+            value,
+          });
+          await publicClient.waitForTransactionReceipt({ hash: txHash as `0x${string}` });
+          // Record in DB
+          const shares = parseEther(celoAmount.toString());
+          await prisma.position.upsert({
+            where: { userId_marketId: { userId, marketId: market.id } },
+            create: { userId, marketId: market.id, yesShares: args.side === 'yes' ? shares : 0n, noShares: args.side === 'no' ? shares : 0n, leverage },
+            update: args.side === 'yes' ? { yesShares: { increment: shares } } : { noShares: { increment: shares } },
+          });
+          await prisma.trade.create({
+            data: { userId, marketId: market.id, outcome: args.side === 'yes' ? 1 : 0, shares, cost: shares, leverage, txHash },
+          });
         } catch (e: any) {
           return `Transaction failed: ${e.shortMessage || e.message}`;
         }
       } else {
-        // Off-chain fallback — record in DB only
-        const shares = BigInt(Math.round(celoAmount * 1e18));
-        await prisma.position.upsert({
-          where: { userId_marketId: { userId, marketId: market.id } },
-          create: { userId, marketId: market.id, yesShares: args.side === 'yes' ? shares : 0n, noShares: args.side === 'no' ? shares : 0n, leverage },
-          update: args.side === 'yes' ? { yesShares: { increment: shares } } : { noShares: { increment: shares } },
-        });
-        await prisma.trade.create({
-          data: { userId, marketId: market.id, outcome: args.side === 'yes' ? 1 : 0, shares, cost: shares, leverage },
-        });
+        return 'Could not register market on-chain. Please try again.';
       }
 
       let reply = `Bet placed! ${celoAmount} CELO on ${args.side.toUpperCase()}\n"${market.question}"`;
