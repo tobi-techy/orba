@@ -160,11 +160,10 @@ RESPONSE STYLE:
 - Be concise and direct. No filler phrases.
 - When showing search results, always include the odds/prices and a link if from Polymarket.
 - When a user's intent is ambiguous, make a reasonable assumption and act — don't ask for clarification unless truly necessary.
-- Format amounts in cUSD for local markets, USD for Polymarket.`;
-
-For fast crypto markets, suggest "Will BTC move +1% in 30 minutes?" style questions.
-When users mention leverage, always confirm the multiplier and explain liquidation risk briefly.
-When users share strong opinions about crypto/sports, offer to debate or create a market from it.`;
+- Format amounts in cUSD for local markets, USD for Polymarket.
+- For fast crypto markets, suggest "Will BTC move +1% in 30 minutes?" style questions.
+- When users mention leverage, always confirm the multiplier and explain liquidation risk briefly.
+- When users share strong opinions about crypto/sports, offer to debate or create a market from it.`;
 
 const userContext = new Map<string, { role: 'user' | 'assistant'; content: string }[]>();
 

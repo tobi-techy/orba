@@ -248,7 +248,7 @@ app.listen(config.port, async () => {
 
   // Auto-register Telegram webhook
   if (config.telegram.botToken) {
-    const renderUrl = process.env.RENDER_EXTERNAL_URL;
+    const renderUrl = process.env.RENDER_EXTERNAL_URL || process.env.APP_URL;
     if (renderUrl) {
       const webhookUrl = `${renderUrl}/telegram`;
       const res = await fetch(
@@ -262,7 +262,18 @@ app.listen(config.port, async () => {
       const data = await res.json() as any;
       console.log('Telegram webhook:', data.ok ? `registered → ${webhookUrl}` : data.description);
     } else {
-      console.log('RENDER_EXTERNAL_URL not set — skipping webhook registration');
+      // Fallback: register with known Render URL
+      const knownUrl = 'https://orba.onrender.com/telegram';
+      const res = await fetch(
+        `https://api.telegram.org/bot${config.telegram.botToken}/setWebhook`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: knownUrl, drop_pending_updates: true }),
+        }
+      );
+      const data = await res.json() as any;
+      console.log('Telegram webhook:', data.ok ? `registered → ${knownUrl}` : data.description);
     }
   }
 });
