@@ -312,7 +312,7 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
       }
 
       let reply = `Bet placed! ${celoAmount} CELO on ${args.side.toUpperCase()}\n"${market.question}"`;
-      if (txHash) reply += `\nTx: \`${txHash}\``;
+      if (txHash) reply += `\n[View on Blockscout](https://celo-sepolia.blockscout.com/tx/${txHash})`;
       if (leverage > 1) reply += `\n${leverage}x leverage`;
       return reply;
     }
