@@ -403,10 +403,10 @@ async function executeFunction(name: string, args: any, phoneNumber: string): Pr
 const SEARCH_TRIGGERS = /\b(find|search|show|any|look for|what.*market|market.*on|markets.*about|bet on|predict|trending|popular)\b/i;
 
 function extractSearchQuery(text: string): string | null {
-  // Strip filler words to get the core topic
   return text
-    .replace(/\b(find|search|show me|any|look for|what('s| is| are)( the)?|markets?(on|about|for)?|can i bet on|is there a market|trending|popular)\b/gi, '')
+    .replace(/\b(is there|are there|find|search|show me|any|look for|what('s| is| are)?( the)?|markets?( on| about| for)?|can i bet on|is there a market|trending|popular|available|now|right now|currently|today|\bon\b|\babout\b|\bfor\b)\b/gi, '')
     .replace(/[?!.,]/g, '')
+    .replace(/\s+/g, ' ')
     .trim() || null;
 }
 
