@@ -79,6 +79,9 @@ function normalizeMarket(m: any): PolymarketMarket | null {
     outcomePrices = [0.5, 0.5];
   }
 
+  // Use event slug for correct URL, fall back to market slug
+  const eventSlug = m.events?.[0]?.slug || m.slug || m.id;
+
   return {
     id: m.conditionId || m.id,
     question: m.question,
@@ -89,7 +92,7 @@ function normalizeMarket(m: any): PolymarketMarket | null {
     liquidity: parseFloat(m.liquidity || '0'),
     outcomes,
     outcomePrices,
-    url: `https://polymarket.com/event/${m.slug || m.id}`,
+    url: `https://polymarket.com/event/${eventSlug}`,
   };
 }
 
