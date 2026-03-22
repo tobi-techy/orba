@@ -201,7 +201,7 @@ RESPONSE RULES:
 const userContext = new Map<string, { role: 'user' | 'assistant'; content: string }[]>();
 
 async function executeFunction(name: string, args: any, phoneNumber: string, chatId?: number): Promise<string> {
-  const { userId, address } = await getOrCreateWallet(phoneNumber);
+  const { userId, address, account } = await getOrCreateWallet(phoneNumber);
 
   switch (name) {
     case 'create_market': {
