@@ -18,18 +18,28 @@ export interface PolymarketMarket {
 export async function searchPolymarkets(query: string, limit = 5): Promise<PolymarketMarket[]> {
   try {
     const params = new URLSearchParams({
-      _c: query,
+      q: query,
       active: 'true',
       closed: 'false',
       limit: String(limit),
       order: 'volume',
       ascending: 'false',
     });
-    const res = await fetch(`${GAMMA_API}/markets?${params}`);
+    const res = await fetch(`${GAMMA_API}/events?${params}`);
     if (!res.ok) return [];
-    const data: any[] = await res.json();
+    const events: any[] = await res.json();
 
-    return data.map(normalizeMarket).filter(Boolean) as PolymarketMarket[];
+    // Extract one representative market per event
+    const markets: PolymarketMarket[] = [];
+    for (const event of events) {
+      const eventMarkets: any[] = event.markets || [];
+      const best = eventMarkets[0];
+      if (!best) continue;
+      const normalized = normalizeMarket({ ...best, events: [event] });
+      if (normalized) markets.push(normalized);
+      if (markets.length >= limit) break;
+    }
+    return markets;
   } catch {
     return [];
   }
@@ -55,10 +65,19 @@ export async function getTrendingPolymarkets(limit = 5): Promise<PolymarketMarke
       order: 'volume24hr',
       ascending: 'false',
     });
-    const res = await fetch(`${GAMMA_API}/markets?${params}`);
+    const res = await fetch(`${GAMMA_API}/events?${params}`);
     if (!res.ok) return [];
-    const data: any[] = await res.json();
-    return data.map(normalizeMarket).filter(Boolean) as PolymarketMarket[];
+    const events: any[] = await res.json();
+
+    const markets: PolymarketMarket[] = [];
+    for (const event of events) {
+      const best = (event.markets || [])[0];
+      if (!best) continue;
+      const normalized = normalizeMarket({ ...best, events: [event] });
+      if (normalized) markets.push(normalized);
+      if (markets.length >= limit) break;
+    }
+    return markets;
   } catch {
     return [];
   }
