@@ -39,11 +39,11 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'place_bet',
-      description: 'Place a bet on a market, optionally with leverage (2x/3x/5x).',
+      description: 'Place a bet on a prediction market. Pass the market ID if known, or the full market question if the user wants to bet on a topic (a local market will be created automatically).',
       parameters: {
         type: 'object',
         properties: {
-          market_id: { type: 'string' },
+          market_id: { type: 'string', description: 'Market UUID, or the full question text if no local market exists yet' },
           side: { type: 'string', enum: ['yes', 'no'] },
           amount: { type: 'number', description: 'Amount in cUSD' },
           leverage: { type: 'number', enum: [1, 2, 3, 5], description: 'Leverage multiplier. Default 1x.' },
@@ -209,8 +209,35 @@ async function executeFunction(name: string, args: any, phoneNumber: string): Pr
     }
 
     case 'place_bet': {
-      const market = await prisma.market.findUnique({ where: { id: args.market_id } });
-      if (!market) return 'Market not found';
+      let market = await prisma.market.findUnique({ where: { id: args.market_id } });
+
+      // If not found by ID, try matching by question text (AI may pass question instead of ID)
+      if (!market) {
+        market = await prisma.market.findFirst({
+          where: {
+            resolved: false,
+            question: { contains: args.market_id, mode: 'insensitive' },
+          },
+        });
+      }
+
+      // If still not found, auto-create a local market from the question text
+      if (!market) {
+        const question = args.market_id.length > 10 && args.market_id.includes(' ')
+          ? args.market_id
+          : null;
+        if (!question) return 'Market not found. Try searching first with "find markets on [topic]", then bet using the market ID.';
+
+        market = await prisma.market.create({
+          data: {
+            question,
+            resolutionTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            oracleType: 'manual',
+            oracleData: {},
+            creatorId: userId,
+          },
+        });
+      }
       if (market.resolved) return 'Market already resolved';
 
       const leverage = LEVERAGE_OPTIONS.includes(args.leverage) ? args.leverage : 1;
