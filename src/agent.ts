@@ -396,7 +396,11 @@ async function executeFunction(name: string, args: any, phoneNumber: string): Pr
           : await searchPolymarkets(args.query, 5);
 
         if (polyMarkets.length) {
-          results.push('*Polymarket:*\n' + polyMarkets.map((m, i) => `${i + 1}. ${formatPolymarket(m)}`).join('\n\n'));
+          results.push(
+            '*Polymarket (real-money, view only):*\n' +
+            polyMarkets.map((m, i) => `${i + 1}. ${formatPolymarket(m)}`).join('\n\n') +
+            '\n\n_Want to bet on one of these topics with cUSD? Say "create a market on [topic]" and I\'ll set one up for you._'
+          );
         }
       } catch {
         // Polymarket unavailable — skip silently
