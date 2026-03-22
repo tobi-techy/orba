@@ -128,8 +128,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       parameters: {
         type: 'object',
         properties: {
-          query: { type: 'string', description: 'Search topic, e.g. "bitcoin", "US election", "Champions League"' },
-          trending: { type: 'boolean', description: 'If true, return trending markets instead of searching by query' },
+          query: { type: 'string', description: 'Search topic, e.g. "bitcoin", "US election", "Champions League". Use "trending" to get top markets.' },
         },
         required: ['query'],
       },
@@ -356,6 +355,7 @@ async function executeFunction(name: string, args: any, phoneNumber: string): Pr
 
     case 'search_markets': {
       const results: string[] = [];
+      const isTrendingQuery = /^trending$/i.test(args.query.trim());
 
       // 1. Search local DB
       const words = args.query.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
@@ -379,7 +379,7 @@ async function executeFunction(name: string, args: any, phoneNumber: string): Pr
 
       // 2. Search Polymarket (with fallback)
       try {
-        const polyMarkets = args.trending
+        const polyMarkets = isTrendingQuery
           ? await getTrendingPolymarkets(5)
           : await searchPolymarkets(args.query, 5);
 
@@ -423,7 +423,6 @@ export async function handleMessage(phoneNumber: string, text: string): Promise<
     ? { type: 'function' as const, function: { name: 'search_markets' } }
     : undefined;
 
-  // If it's clearly a search, inject the extracted query so the AI doesn't have to guess
   const messagesForAI = isSearch
     ? [
         { role: 'system' as const, content: systemPrompt },
@@ -431,7 +430,7 @@ export async function handleMessage(phoneNumber: string, text: string): Promise<
         {
           role: 'user' as const,
           content: isTrending
-            ? 'Show me trending markets'
+            ? 'Search markets for: trending'
             : `Search markets for: ${extractSearchQuery(text) || text}`,
         },
       ]
