@@ -275,10 +275,10 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
       }
 
       await prisma.position.upsert({
-        where: { userId_marketId: { userId, marketId: args.market_id } },
+        where: { userId_marketId: { userId, marketId: market.id } },
         create: {
           userId,
-          marketId: args.market_id,
+          marketId: market.id,
           yesShares: args.side === 'yes' ? BigInt(Math.round(effectiveAmount * 1e18)) : 0n,
           noShares: args.side === 'no' ? BigInt(Math.round(effectiveAmount * 1e18)) : 0n,
           leverage,
@@ -296,7 +296,7 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
       await prisma.trade.create({
         data: {
           userId,
-          marketId: args.market_id,
+          marketId: market.id,
           outcome: args.side === 'yes' ? 1 : 0,
           shares: BigInt(Math.round(effectiveAmount * 1e18)),
           cost: BigInt(Math.round(args.amount * 1e18)),
