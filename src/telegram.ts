@@ -138,7 +138,7 @@ Your AI prediction market assistant on Celo.
 
 *What you can do:*
 • Create markets on crypto prices or sports
-• Bet YES/NO with cUSD stablecoins
+• Bet YES/NO with CELO stablecoins
 • Track your portfolio and winnings
 
 Just chat naturally or use the buttons below.`;
@@ -156,7 +156,7 @@ export const HELP_MESSAGE = `*Orba Commands*
 • Markets are listed as #1, #2, etc.
 
 *Portfolio*
-• "My balance" — check cUSD balance
+• "My balance" — check CELO balance
 • "My portfolio" — see your positions
 • "How to deposit" — funding instructions
 

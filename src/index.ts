@@ -232,7 +232,7 @@ app.post('/telegram', async (req, res) => {
       pendingBetPrompts.set(message.from, { question, side: side as 'yes' | 'no' });
       await telegram.sendTelegramMessageWithKeyboard(
         message.chatId,
-        `You picked *${side.toUpperCase()}* on:\n_${question}_\n\nHow much cUSD?`,
+        `You picked *${side.toUpperCase()}* on:\n_${question}_\n\nHow much CELO?`,
         [
           [{ text: '$1', callback_data: `amount:1:1` }, { text: '$5', callback_data: `amount:5:1` }, { text: '$10', callback_data: `amount:10:1` }],
           [{ text: '$5 (2x)', callback_data: `amount:5:2` }, { text: '$5 (3x)', callback_data: `amount:5:3` }, { text: '$10 (2x)', callback_data: `amount:10:2` }],

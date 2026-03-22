@@ -59,7 +59,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         properties: {
           market_id: { type: 'string', description: 'Market UUID, or the full question text if no local market exists yet' },
           side: { type: 'string', enum: ['yes', 'no'] },
-          amount: { type: 'number', description: 'Amount in cUSD' },
+          amount: { type: 'number', description: 'Amount in CELO' },
           leverage: { type: 'number', enum: [1, 2, 3, 5], description: 'Leverage multiplier. Default 1x.' },
         },
         required: ['market_id', 'side', 'amount'],
@@ -86,7 +86,7 @@ const tools: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: 'function',
     function: {
       name: 'get_balance',
-      description: 'Get user cUSD balance and wallet address',
+      description: 'Get user CELO balance and wallet address',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -172,7 +172,7 @@ CREATE:
 PORTFOLIO / BALANCE:
 - "my bets", "my positions", "how am I doing", "portfolio" → get_portfolio
 - "my balance", "how much do I have", "wallet" → get_balance
-- "deposit", "get cUSD", "fund my wallet" → get_deposit_info
+- "deposit", "get CELO", "fund my wallet" → get_deposit_info
 
 INSIGHTS / DEBATE:
 - "what do you think about X", "analyse X", "X prediction", "is X a good bet" → get_market_insights
@@ -187,7 +187,7 @@ RESPONSE RULES:
 - When showing markets, include odds and a Polymarket link if available.
 - Assume intent and act — only ask for clarification if truly ambiguous.
 - For leveraged bets (>1x), always mention liquidation risk in one line.
-- Amounts: cUSD for local markets, USD for Polymarket.
+- Amounts: CELO for local markets, USD for Polymarket.
 - When a user shares a strong opinion (crypto/sports/politics), offer to create a market or debate it.
 - Use market number aliases (#1, #2) when listing markets so users can bet easily.`;
 
@@ -259,7 +259,7 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
       const effectiveAmount = args.amount * leverage;
 
       const balance = await getBalance(address);
-      if (parseFloat(balance) < args.amount) return `Insufficient balance. You have ${balance} cUSD`;
+      if (parseFloat(balance) < args.amount) return `Insufficient balance. You have ${balance} CELO`;
 
       // Calculate liquidation price for leveraged crypto bets
       let liquidationPrice: number | null = null;
@@ -347,11 +347,11 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
 
     case 'get_balance': {
       const balance = await getBalance(address);
-      return `Balance: ${balance} cUSD\nWallet: \`${address}\``;
+      return `Balance: ${balance} CELO\nWallet: \`${address}\``;
     }
 
     case 'get_deposit_info': {
-      return `Your wallet: \`${address}\`\n\nGet testnet cUSD:\n1. Faucet: https://faucet.celo.org/celo-sepolia\n2. Send cUSD to your wallet above\n\nNetwork: Celo Sepolia`;
+      return `Your wallet: \`${address}\`\n\nGet testnet CELO:\n1. Faucet: https://faucet.celo.org/celo-sepolia\n2. Send CELO to your wallet above\n\nNetwork: Celo Sepolia`;
     }
 
     case 'get_market_insights': {

@@ -35,13 +35,8 @@ export async function getOrCreateWallet(phoneNumber: string) {
 
 export async function getBalance(address: `0x${string}`): Promise<string> {
   try {
-    const balance = await publicClient.readContract({
-      address: config.celo.cUsdAddress,
-      abi: [{ name: 'balanceOf', type: 'function', inputs: [{ name: 'account', type: 'address' }], outputs: [{ type: 'uint256' }], stateMutability: 'view' }],
-      functionName: 'balanceOf',
-      args: [address],
-    });
-    return formatUnits(balance, 18);
+    const balance = await publicClient.getBalance({ address });
+    return parseFloat(formatUnits(balance, 18)).toFixed(4);
   } catch {
     return '0';
   }
