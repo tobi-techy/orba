@@ -1,6 +1,6 @@
 import OpenAI from 'openai';
 import { config } from './config';
-import { getOrCreateWallet, getBalance, getBettingBalance, deductBettingBalance, creditBettingBalance } from './wallet';
+import { getOrCreateWallet, getBalance, publicClient } from './wallet';
 import { MarketService } from './market';
 import { prisma } from './db';
 import { getCryptoPrice } from './oracles/crypto';
@@ -226,23 +226,16 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
     case 'place_bet': {
       let market = await prisma.market.findUnique({ where: { id: args.market_id } });
 
-      // If not found by ID, try matching by question text (AI may pass question instead of ID)
       if (!market) {
         market = await prisma.market.findFirst({
-          where: {
-            resolved: false,
-            question: { contains: args.market_id, mode: 'insensitive' },
-          },
+          where: { resolved: false, question: { contains: args.market_id, mode: 'insensitive' } },
         });
       }
 
-      // If still not found, auto-create a local market from the question text
+      // Auto-create from question text if not found
       if (!market) {
-        const question = args.market_id.length > 10 && args.market_id.includes(' ')
-          ? args.market_id
-          : null;
-        if (!question) return 'Market not found. Try searching first with "find markets on [topic]", then bet using the market ID.';
-
+        const question = args.market_id.length > 10 && args.market_id.includes(' ') ? args.market_id : null;
+        if (!question) return 'Market not found. Try browsing markets first with /markets.';
         market = await prisma.market.create({
           data: {
             question,
@@ -256,61 +249,63 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
       if (market.resolved) return 'Market already resolved';
 
       const leverage = LEVERAGE_OPTIONS.includes(args.leverage) ? args.leverage : 1;
-      const effectiveAmount = args.amount * leverage;
+      const celoAmount = args.amount * leverage;
 
-      const balance = await getBettingBalance(userId);
-      if (balance < args.amount) return `Insufficient balance. You have ${balance.toFixed(2)} CELO`;
+      // Check on-chain balance
+      const balance = await getBalance(address);
+      if (parseFloat(balance) < celoAmount) return `Insufficient balance. You have ${balance} CELO`;
 
-      // Calculate liquidation price for leveraged crypto bets
-      let liquidationPrice: number | null = null;
-      if (leverage > 1 && market.oracleType === 'crypto') {
-        const oracleData = market.oracleData as any;
-        const priceData = await getCryptoPrice(oracleData.coin);
-        if (priceData) {
-          const buffer = priceData.price / leverage;
-          liquidationPrice = args.side === 'yes'
-            ? priceData.price - buffer
-            : priceData.price + buffer;
+      // Register market on-chain if not yet
+      if (!market.onChainId) {
+        try {
+          const operatorAccount = (await import('viem/accounts')).privateKeyToAccount(
+            config.celo.operatorPrivateKey as `0x${string}`
+          );
+          const walletClient = (await import('viem')).createWalletClient({
+            account: operatorAccount,
+            chain: (await import('./wallet')).publicClient.chain,
+            transport: (await import('viem')).http(config.celo.rpcUrl),
+          });
+          const hash = await walletClient.writeContract({
+            address: config.celo.contractAddress as `0x${string}`,
+            abi: (await import('viem')).parseAbi(['function createMarket(string question, uint256 resolutionTime) returns (uint256)']),
+            functionName: 'createMarket',
+            args: [market.question, BigInt(Math.floor(market.resolutionTime.getTime() / 1000))],
+          });
+          const receipt = await (await import('./wallet')).publicClient.waitForTransactionReceipt({ hash });
+          // Parse MarketCreated event to get onChainId
+          const log = receipt.logs[0];
+          const onChainId = log ? Number(BigInt(log.topics[1] || '0x0')) : 0;
+          market = await prisma.market.update({ where: { id: market.id }, data: { onChainId } });
+        } catch (e) {
+          console.error('On-chain market creation failed:', e);
+          // Fall through to off-chain only
         }
       }
 
-      await prisma.position.upsert({
-        where: { userId_marketId: { userId, marketId: market.id } },
-        create: {
-          userId,
-          marketId: market.id,
-          yesShares: args.side === 'yes' ? BigInt(Math.round(effectiveAmount * 1e18)) : 0n,
-          noShares: args.side === 'no' ? BigInt(Math.round(effectiveAmount * 1e18)) : 0n,
-          leverage,
-          liquidationPrice,
-        },
-        update: {
-          ...(args.side === 'yes'
-            ? { yesShares: { increment: BigInt(Math.round(effectiveAmount * 1e18)) } }
-            : { noShares: { increment: BigInt(Math.round(effectiveAmount * 1e18)) } }),
-          leverage,
-          liquidationPrice,
-        },
-      });
-
-      await prisma.trade.create({
-        data: {
-          userId,
-          marketId: market.id,
-          outcome: args.side === 'yes' ? 1 : 0,
-          shares: BigInt(Math.round(effectiveAmount * 1e18)),
-          cost: BigInt(Math.round(args.amount * 1e18)),
-          leverage,
-        },
-      });
-
-      await deductBettingBalance(userId, args.amount);
-
-      let reply = `Bet placed! $${args.amount} on ${args.side.toUpperCase()}`;
-      if (leverage > 1) {
-        reply += ` (${leverage}x leverage → $${effectiveAmount} exposure)`;
-        if (liquidationPrice) reply += `\nLiquidation price: $${liquidationPrice.toFixed(2)}`;
+      let txHash: string | undefined;
+      if (market.onChainId !== null && market.onChainId !== undefined) {
+        try {
+          txHash = await marketService.buy(market.id, userId, args.side === 'yes', celoAmount, account);
+        } catch (e: any) {
+          return `Transaction failed: ${e.shortMessage || e.message}`;
+        }
+      } else {
+        // Off-chain fallback — record in DB only
+        const shares = BigInt(Math.round(celoAmount * 1e18));
+        await prisma.position.upsert({
+          where: { userId_marketId: { userId, marketId: market.id } },
+          create: { userId, marketId: market.id, yesShares: args.side === 'yes' ? shares : 0n, noShares: args.side === 'no' ? shares : 0n, leverage },
+          update: args.side === 'yes' ? { yesShares: { increment: shares } } : { noShares: { increment: shares } },
+        });
+        await prisma.trade.create({
+          data: { userId, marketId: market.id, outcome: args.side === 'yes' ? 1 : 0, shares, cost: shares, leverage },
+        });
       }
+
+      let reply = `Bet placed! ${celoAmount} CELO on ${args.side.toUpperCase()}\n"${market.question}"`;
+      if (txHash) reply += `\nTx: \`${txHash}\``;
+      if (leverage > 1) reply += `\n${leverage}x leverage`;
       return reply;
     }
 
@@ -348,8 +343,8 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
     }
 
     case 'get_balance': {
-      const bettingBal = await getBettingBalance(userId);
-      return `Betting Balance: ${bettingBal.toFixed(2)} CELO\nWallet: \`${address}\``;
+      const balance = await getBalance(address);
+      return `Balance: ${balance} CELO\nWallet: \`${address}\``;
     }
 
     case 'get_deposit_info': {

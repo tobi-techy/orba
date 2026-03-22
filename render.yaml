@@ -32,7 +32,7 @@ services:
       - key: CELO_RPC_URL
         value: https://forno.celo-sepolia.celo-testnet.org
       - key: PREDICTION_MARKET_ADDRESS
-        value: "0x5A2bdC8dc5332C10eDbD16fd9dF9201fC1c432f6"
+        value: "0x62fB5F476B4916e81B323b2381E7903a86049429"
 
 databases:
   - name: orba-db
