@@ -169,6 +169,13 @@ export const HELP_MESSAGE = `*Orba Commands*
 • "Create a 5-min market: will BTC move 1%?"
 • "Create a 1-hour market on ETH price"`;
 
+export const MARKETS_BROWSER_KEYBOARD = [
+  [{ text: '🔥 Trending', callback_data: 'browse:trending' }, { text: '⚡ Ending Soon', callback_data: 'browse:ending_soon' }],
+  [{ text: '⚽ Sports', callback_data: 'browse:sports' }, { text: '💰 Crypto', callback_data: 'browse:crypto' }],
+  [{ text: '🗳️ Politics', callback_data: 'browse:politics' }, { text: '🎬 Pop Culture', callback_data: 'browse:pop-culture' }],
+  [{ text: '🏠 My Local Markets', callback_data: 'browse:local' }, { text: '⚡ Fast Markets', callback_data: 'browse:fast' }],
+];
+
 export const WELCOME_BUTTONS = [
   ['Balance', 'Markets'],
   ['Create Market', 'Portfolio'],

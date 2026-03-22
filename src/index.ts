@@ -104,23 +104,21 @@ app.post('/telegram', async (req, res) => {
     }
 
     // Handle /start and /help commands
-    if (message.text === '/start' || message.text === '/help') {
-      // On /start, also show wallet info as onboarding
+    if (message.text === '/start' || message.text === '/help' || message.text === '/markets') {
       if (message.text === '/start') {
-        await telegram.sendTelegramMessage(
-          message.chatId,
-          telegram.WELCOME_MESSAGE,
-          telegram.WELCOME_BUTTONS
-        );
-        // Send wallet onboarding as follow-up
+        await telegram.sendTelegramMessage(message.chatId, telegram.WELCOME_MESSAGE, telegram.WELCOME_BUTTONS);
         const { handleMessage } = await import('./agent');
         const stopT = telegram.sendTypingAction(message.chatId);
-        const walletInfo = await handleMessage(message.from, 'What is my balance and wallet address?');
+        const walletInfo = await handleMessage(message.from, 'What is my balance and wallet address?', message.chatId);
         stopT();
         await telegram.sendTelegramMessage(message.chatId, walletInfo);
-      } else {
-        await telegram.sendTelegramMessage(message.chatId, telegram.HELP_MESSAGE);
       }
+      // Always show the market browser
+      await telegram.sendTelegramMessageWithKeyboard(
+        message.chatId,
+        'Browse markets by category:',
+        telegram.MARKETS_BROWSER_KEYBOARD
+      );
       return;
     }
 
@@ -147,6 +145,76 @@ app.post('/telegram', async (req, res) => {
           suggestedBy: message.from,
           senderName: message.senderName || 'Someone',
         });
+      }
+      return;
+    }
+
+    // Handle category browser
+    if (message.text.startsWith('browse:')) {
+      const category = message.text.slice(7);
+      const { getTrendingPolymarkets, getPolymarketsByCategory, getPolymarketsEndingSoon, formatPolymarket } = await import('./integrations/polymarket');
+      const { prisma } = await import('./db');
+
+      let markets: any[] = [];
+      let title = '';
+
+      if (category === 'trending') {
+        markets = await getTrendingPolymarkets(5);
+        title = '🔥 *Trending Markets*';
+      } else if (category === 'ending_soon') {
+        markets = await getPolymarketsEndingSoon(5);
+        title = '⚡ *Ending Soon*';
+      } else if (category === 'local') {
+        const local = await prisma.market.findMany({ where: { resolved: false }, orderBy: { createdAt: 'desc' }, take: 5 });
+        if (!local.length) {
+          await telegram.sendTelegramMessage(message.chatId, 'No local markets yet. Create one!');
+        } else {
+          for (const m of local) {
+            await telegram.sendTelegramMessageWithKeyboard(
+              message.chatId,
+              `*${m.question}*\nID: \`${m.id}\``,
+              [[{ text: '✅ Bet YES', callback_data: `bet:yes:${encodeURIComponent(m.id)}` }, { text: '❌ Bet NO', callback_data: `bet:no:${encodeURIComponent(m.id)}` }]]
+            );
+          }
+        }
+        return;
+      } else if (category === 'fast') {
+        const fast = await prisma.market.findMany({ where: { resolved: false, durationMins: { not: null } }, orderBy: { resolutionTime: 'asc' }, take: 5 });
+        if (!fast.length) {
+          await telegram.sendTelegramMessage(message.chatId, 'No fast markets active. Say "create a 5-min market on BTC" to start one!');
+        } else {
+          for (const m of fast) {
+            const label = m.durationMins! < 60 ? `${m.durationMins}min` : '1hr';
+            await telegram.sendTelegramMessageWithKeyboard(
+              message.chatId,
+              `*${m.question}* [${label}]\nID: \`${m.id}\``,
+              [[{ text: '✅ Bet YES', callback_data: `bet:yes:${encodeURIComponent(m.id)}` }, { text: '❌ Bet NO', callback_data: `bet:no:${encodeURIComponent(m.id)}` }]]
+            );
+          }
+        }
+        return;
+      } else {
+        markets = await getPolymarketsByCategory(category, 5);
+        const labels: Record<string, string> = { sports: '⚽ Sports', crypto: '💰 Crypto', politics: '🗳️ Politics', 'pop-culture': '🎬 Pop Culture' };
+        title = `${labels[category] || category} *Markets*`;
+      }
+
+      if (!markets.length) {
+        await telegram.sendTelegramMessage(message.chatId, 'No markets found in this category right now.');
+        return;
+      }
+
+      await telegram.sendTelegramMessage(message.chatId, title);
+      for (const m of markets) {
+        const priceStr = m.outcomes.map((o: string, i: number) => `${o}: ${Math.round((m.outcomePrices[i] || 0) * 100)}%`).join(' | ');
+        const vol = m.volume > 1000 ? `$${(m.volume / 1000).toFixed(0)}k` : `$${m.volume.toFixed(0)}`;
+        const end = m.endDate ? new Date(m.endDate).toLocaleDateString() : 'TBD';
+        const q = encodeURIComponent(m.question).slice(0, 50);
+        await telegram.sendTelegramMessageWithKeyboard(
+          message.chatId,
+          `*${m.question}*\n${priceStr}\nVolume: ${vol} | Ends: ${end}\n${m.url}`,
+          [[{ text: '✅ Bet YES', callback_data: `bet:yes:${q}` }, { text: '❌ Bet NO', callback_data: `bet:no:${q}` }]]
+        );
       }
       return;
     }
