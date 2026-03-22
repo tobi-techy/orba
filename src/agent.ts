@@ -147,6 +147,7 @@ SEARCH / BROWSE:
 
 BET / TRADE:
 - "bet $N on X", "put $N on YES/NO", "I'll take YES on market N", "#N YES $N" → place_bet
+- If the user wants to bet on a Polymarket result, pass the FULL market question as market_id — a local market will be auto-created
 - "I think X will happen" → offer to place a bet or create a market
 - "double down", "2x", "3x", "5x" → place_bet with leverage
 

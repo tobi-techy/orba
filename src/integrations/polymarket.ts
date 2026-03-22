@@ -121,5 +121,5 @@ export function formatPolymarket(m: PolymarketMarket): string {
     .join(' | ');
   const vol = m.volume > 1000 ? `$${(m.volume / 1000).toFixed(0)}k` : `$${m.volume.toFixed(0)}`;
   const end = m.endDate ? new Date(m.endDate).toLocaleDateString() : 'TBD';
-  return `*${m.question}*\n${priceStr}\nVolume: ${vol} | Ends: ${end}\n${m.url}`;
+  return `*${m.question}*\n${priceStr}\nVolume: ${vol} | Ends: ${end}\n${m.url}\n_Bet: "bet $N YES on ${m.question}"_`;
 }
