@@ -10,6 +10,16 @@ import { sendTelegramMessageWithKeyboard } from './telegram';
 // Pending bet state: waiting for amount after user clicked YES/NO on a market
 export const pendingBets = new Map<string, { question: string; side: 'yes' | 'no' }>();
 
+// Registry: short hash → full question text (for callback_data size limit workaround)
+export const questionRegistry = new Map<string, string>();
+export function registerQuestion(q: string): string {
+  let hash = 0;
+  for (let i = 0; i < q.length; i++) hash = (hash * 31 + q.charCodeAt(i)) & 0xfffffff;
+  const key = hash.toString(36);
+  questionRegistry.set(key, q);
+  return key;
+}
+
 const client = new OpenAI({
   apiKey: config.groq.apiKey || config.openai.apiKey,
   baseURL: config.groq.apiKey ? 'https://api.groq.com/openai/v1' : undefined,
@@ -438,7 +448,7 @@ async function executeFunction(name: string, args: any, phoneNumber: string, cha
               const vol = m.volume > 1000 ? `$${(m.volume / 1000).toFixed(0)}k` : `$${m.volume.toFixed(0)}`;
               const end = m.endDate ? new Date(m.endDate).toLocaleDateString() : 'TBD';
               const text = `*${m.question}*\n${priceStr}\nVolume: ${vol} | Ends: ${end}\n${m.url}`;
-              const q = encodeURIComponent(m.question).slice(0, 50); // keep callback_data ≤64 bytes
+              const q = registerQuestion(m.question);
               await sendTelegramMessageWithKeyboard(chatId, text, [[
                 { text: '✅ Bet YES', callback_data: `bet:yes:${q}` },
                 { text: '❌ Bet NO', callback_data: `bet:no:${q}` },

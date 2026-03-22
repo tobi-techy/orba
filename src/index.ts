@@ -38,11 +38,15 @@ let parseWebhook: any;
 let sendMessage: any;
 let parseTelegramWebhook: any;
 let sendTelegramMessage: any;
+let registerQuestion: any;
+let questionRegistry: any;
 
 async function loadModules() {
   if (!handleMessage) {
     const agent = await import('./agent');
     handleMessage = agent.handleMessage;
+    registerQuestion = agent.registerQuestion;
+    questionRegistry = agent.questionRegistry;
     const whatsapp = await import('./whatsapp');
     parseWebhook = whatsapp.parseWebhook;
     sendMessage = whatsapp.sendMessage;
@@ -209,7 +213,7 @@ app.post('/telegram', async (req, res) => {
         const priceStr = m.outcomes.map((o: string, i: number) => `${o}: ${Math.round((m.outcomePrices[i] || 0) * 100)}%`).join(' | ');
         const vol = m.volume > 1000 ? `$${(m.volume / 1000).toFixed(0)}k` : `$${m.volume.toFixed(0)}`;
         const end = m.endDate ? new Date(m.endDate).toLocaleDateString() : 'TBD';
-        const q = encodeURIComponent(m.question).slice(0, 50);
+        const q = registerQuestion(m.question);
         await telegram.sendTelegramMessageWithKeyboard(
           message.chatId,
           `*${m.question}*\n${priceStr}\nVolume: ${vol} | Ends: ${end}\n${m.url}`,
@@ -222,7 +226,9 @@ app.post('/telegram', async (req, res) => {
     // Handle YES/NO bet button taps from search results
     if (message.text.startsWith('bet:yes:') || message.text.startsWith('bet:no:')) {
       const [, side, ...rest] = message.text.split(':');
-      const question = decodeURIComponent(rest.join(':'));
+      const key = rest.join(':');
+      // Look up full question from registry (hash key), or use as-is (UUID for local markets)
+      const question = questionRegistry?.get(key) || decodeURIComponent(key);
       pendingBetPrompts.set(message.from, { question, side: side as 'yes' | 'no' });
       await telegram.sendTelegramMessageWithKeyboard(
         message.chatId,
